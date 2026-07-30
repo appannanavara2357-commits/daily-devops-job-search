@@ -19,3 +19,9 @@ def send_email(subject, body):
         server.send_message(msg)
 
     print("✅ Email sent successfully!")
+
+if __name__ == "__main__":
+    send_email(
+        "Test Job Alert",
+        "<h2>Daily DevOps Job Alert Test</h2><p>Email setup is working.</p>"
+    )

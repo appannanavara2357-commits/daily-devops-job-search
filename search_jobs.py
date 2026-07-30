@@ -1,6 +1,7 @@
 import json
 from job_search import search_jobs
 from email_sender import send_email
+from filters import filter_jobs
 
 
 FILE_NAME = "previous_jobs.json"
@@ -22,6 +23,7 @@ def save_jobs(jobs):
 previous_jobs = load_previous_jobs()
 
 jobs = search_jobs()
+jobs = filter_jobs(jobs)
 
 new_jobs = []
 
