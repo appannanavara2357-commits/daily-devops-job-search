@@ -29,6 +29,17 @@ SKILLS = [
 ]
 
 
+def find_skills(text):
+
+    matched_skills = []
+
+    for skill in SKILLS:
+        if skill.lower() in text.lower():
+            matched_skills.append(skill)
+
+    return matched_skills
+
+
 def filter_jobs(jobs):
 
     filtered_jobs = []
@@ -38,16 +49,13 @@ def filter_jobs(jobs):
         text = (
             job.get("title", "") +
             job.get("description", "")
-        ).lower()
+        )
 
-        matched = False
+        skills = find_skills(text)
 
-        for keyword in ROLES + SKILLS:
-            if keyword.lower() in text:
-                matched = True
-                break
+        if skills:
 
-        if matched:
+            job["matched_skills"] = skills
             filtered_jobs.append(job)
 
     return filtered_jobs

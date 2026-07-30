@@ -46,6 +46,7 @@ if new_jobs:
         <p>
         <b>Company:</b> {job['company']}<br>
         <b>Location:</b> {job['location']}<br>
+        <b>Skills:</b> {', '.join(job.get('matched_skills', []))}<br>
         <b>Apply:</b>
         <a href="{job['url']}">{job['url']}</a>
         </p>
