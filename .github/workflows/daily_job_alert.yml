@@ -31,4 +31,4 @@ jobs:
 
     - name: Run Job Alert Script
       run: |
-        python job_alert.py
+        python search_jobs.py
