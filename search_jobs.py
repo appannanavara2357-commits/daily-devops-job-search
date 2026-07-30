@@ -27,6 +27,8 @@ jobs = filter_jobs(jobs)
 
 new_jobs = []
 
+existing_urls = []
+
 for job in jobs:
     if job["url"] not in previous_jobs:
         new_jobs.append(job)
