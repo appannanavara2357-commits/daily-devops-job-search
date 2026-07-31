@@ -1,4 +1,5 @@
 ROLES = [
+
     "DevOps Engineer",
     "Senior DevOps Engineer",
     "Cloud DevOps Engineer",
@@ -11,45 +12,61 @@ ROLES = [
     "Kubernetes Engineer",
     "Cloud Engineer",
     "Infrastructure Engineer",
-    "Cloud Operations Engineer"
+    "Cloud Operations Engineer",
+    "Cloud Infrastructure Engineer",
+    "MLOps Engineer"
+
 ]
 
 
 SKILLS = [
+
     "AWS",
     "Azure",
     "GCP",
+
     "Terraform",
+    "CloudFormation",
+
     "Kubernetes",
     "Docker",
+
     "Jenkins",
     "GitHub Actions",
     "Azure DevOps",
+
     "Ansible",
+
     "Linux",
+
     "CI/CD",
+
     "Helm",
     "ArgoCD",
+
     "EKS",
     "AKS",
     "ECS",
     "ECR",
-    "CloudFormation",
+
     "Prometheus",
     "Grafana",
+
     "SonarQube",
     "Nexus",
+
     "Vault",
+
     "Python",
     "Shell",
+
     "Git"
+
 ]
 
 
+
 def find_skills(text):
-    """
-    Find DevOps skills from job text
-    """
 
     matched_skills = []
 
@@ -66,10 +83,8 @@ def find_skills(text):
 
 
 
+
 def is_matching_role(text):
-    """
-    Check DevOps related job role
-    """
 
     text = text.lower()
 
@@ -84,10 +99,8 @@ def is_matching_role(text):
 
 
 
+
 def filter_jobs(jobs):
-    """
-    Filter only relevant DevOps jobs
-    """
 
     filtered_jobs = []
 
@@ -107,32 +120,32 @@ def filter_jobs(jobs):
         )
 
 
-        company = job.get(
-            "company",
-            ""
-        )
-
-
         tags = job.get(
             "tags",
             []
         )
 
 
-        # Convert tags list into text
         if isinstance(tags, list):
+
             tags = " ".join(tags)
 
 
 
         full_text = (
+
             title
             + " "
             + description
             + " "
-            + company
-            + " "
             + tags
+
+        )
+
+
+
+        role_match = is_matching_role(
+            full_text
         )
 
 
@@ -142,22 +155,22 @@ def filter_jobs(jobs):
         )
 
 
-        role_match = is_matching_role(
-            full_text
-        )
+
+        # Accept:
+        # 1. Exact DevOps role
+        # OR
+        # 2. Non DevOps title but multiple skills
 
 
-
-        # Accept DevOps roles
-        # even if description is empty
-
-        if role_match:
+        if role_match or len(skills) >= 2:
 
 
             job["matched_skills"] = skills
 
 
-            filtered_jobs.append(job)
+            filtered_jobs.append(
+                job
+            )
 
 
 
