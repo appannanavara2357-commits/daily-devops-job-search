@@ -1,16 +1,12 @@
+# Gmail API secrets
+credentials.json
+token.json
+
+# Generated files
+jobs.json
+jobs_report.txt
+previous_jobs.json
+
 # Python cache
 __pycache__/
 *.pyc
-
-# Environment variables
-.env
-
-# Gmail API secrets (DO NOT COMMIT)
-credentials.json
-token.json
-.github/workflows/credentials.json
-
-# Generated job files
-jobs.json
-jobs_report.txt
-.github/workflows/jobs.json
