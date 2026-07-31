@@ -1,5 +1,5 @@
 import json
-from job_search import search_jobs
+from job_sources.remotive_source import search_jobs
 from email_sender import send_email
 from filters import filter_jobs
 
