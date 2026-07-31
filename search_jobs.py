@@ -2,7 +2,8 @@ import json
 import os
 from datetime import datetime
 
-from job_sources.remotive_source import search_jobs
+from job_sources.remotive_source import search_jobs as search_remotive_jobs
+from job_sources.gmail_source import search_gmail_jobs
 from email_sender import send_email
 from filters import filter_jobs
 
@@ -33,7 +34,7 @@ def load_previous_jobs():
 
 def save_jobs(jobs):
     """
-    Save job URLs with UTF-8 support
+    Save job URLs
     """
 
     with open(
@@ -55,15 +56,17 @@ def create_email_body(jobs):
 
     today = datetime.now().strftime("%d-%m-%Y")
 
+
     email_body = f"""
-    <html>
-    <body>
+<html>
+<body>
 
-    <h2>
-    🚀 Daily DevOps Job Alert - {today}
-    </h2>
+<h2>
+🚀 Daily DevOps Job Alert - {today}
+</h2>
 
-    """
+"""
+
 
     for job in jobs:
 
@@ -74,55 +77,60 @@ def create_email_body(jobs):
             )
         )
 
+
         email_body += f"""
 
-        <hr>
+<hr>
 
-        <h3>
-        {job.get('title','N/A')}
-        </h3>
-
-
-        <p>
-
-        <b>Company:</b>
-        {job.get('company','N/A')}
-        <br>
+<h3>
+{job.get('title', 'N/A')}
+</h3>
 
 
-        <b>Location:</b>
-        {job.get('location','N/A')}
-        <br>
+<p>
+
+<b>Company:</b>
+{job.get('company', 'N/A')}
+<br>
 
 
-        <b>Skills:</b>
-        {skills}
-        <br>
+<b>Location:</b>
+{job.get('location', 'N/A')}
+<br>
 
 
-        <b>Apply:</b>
-        <a href="{job.get('url')}">
-        Click Here
-        </a>
+<b>Skills:</b>
+{skills}
+<br>
 
-        </p>
 
-        """
+<b>Apply:</b>
+<a href="{job.get('url')}">
+Click Here
+</a>
+
+</p>
+
+"""
+
 
     email_body += """
 
-    </body>
-    </html>
+</body>
+</html>
 
-    """
+"""
+
 
     return email_body
+
 
 
 
 def main():
 
     print("Searching jobs...")
+
 
     previous_jobs = load_previous_jobs()
 
@@ -132,15 +140,50 @@ def main():
     )
 
 
-    jobs = search_jobs()
+
+    # Get jobs from Remotive
+
+    remotive_jobs = search_remotive_jobs()
+
+    gmail_jobs = search_gmail_jobs()
 
 
-    print(
-        f"Jobs found: {len(jobs)}"
-    )
+    jobs = (
+         remotive_jobs +
+         gmail_jobs
+   )
 
+
+
+    # Debug API response
+
+    print("\nRAW JOBS:")
+
+    for job in jobs:
+
+        print("----------------")
+
+        print(
+            "TITLE:",
+            job.get("title")
+        )
+
+        print(
+            "COMPANY:",
+            job.get("company")
+        )
+
+        print(
+            "TAGS:",
+            job.get("tags")
+        )
+
+
+
+    # Apply filters
 
     jobs = filter_jobs(jobs)
+
 
 
     print(
@@ -148,10 +191,11 @@ def main():
     )
 
 
+
     new_jobs = []
 
-
     sent_urls = set(previous_jobs)
+
 
 
     for job in jobs:
@@ -167,6 +211,7 @@ def main():
 
 
 
+
     if new_jobs:
 
 
@@ -175,9 +220,11 @@ def main():
         )
 
 
+
         email_body = create_email_body(
             new_jobs
         )
+
 
 
         send_email(
@@ -186,9 +233,11 @@ def main():
         )
 
 
+
         save_jobs(
             list(sent_urls)
         )
+
 
 
         print(
@@ -196,11 +245,13 @@ def main():
         )
 
 
+
     else:
 
         print(
             "No new jobs found today."
         )
+
 
 
 
