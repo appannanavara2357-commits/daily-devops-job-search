@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 
 from email import message_from_bytes
+from email.header import decode_header
 
 from job_extractor import extract_job_details
 
@@ -18,10 +19,6 @@ SCOPES = [
 ]
 
 
-# -----------------------------
-# Gmail Authentication
-# -----------------------------
-
 def gmail_service():
 
     creds = None
@@ -32,7 +29,6 @@ def gmail_service():
             "token.json",
             SCOPES
         )
-
 
     if not creds or not creds.valid:
 
@@ -51,16 +47,15 @@ def gmail_service():
                 port=0
             )
 
-
         with open(
             "token.json",
-            "w"
+            "w",
+            encoding="utf-8"
         ) as token:
 
             token.write(
                 creds.to_json()
             )
-
 
     service = build(
         "gmail",
@@ -72,67 +67,42 @@ def gmail_service():
 
 
 
-# -----------------------------
-# Remove unwanted emails
-# -----------------------------
+def decode_subject(raw_subject):
 
-def is_job_email(subject, sender):
+    """
+    Fix Gmail encoded subjects like:
+    =?UTF-8?Q?=E2=9C=89=EF=B8=8F_Job?=
+    
+    Output:
+    ✉️ Job
+    """
 
-    subject_lower = subject.lower()
-    sender_lower = sender.lower()
+    subject = ""
 
+    decoded_parts = decode_header(
+        raw_subject
+    )
 
-    ignore_words = [
+    for part, encoding in decoded_parts:
 
-        "security alert",
-        "application successful",
-        "follow up application",
-        "account notification",
-        "google",
-        "password",
-        "verification"
+        if isinstance(part, bytes):
 
-    ]
+            subject += part.decode(
+                encoding or "utf-8",
+                errors="ignore"
+            )
 
+        else:
 
-    for word in ignore_words:
+            subject += part
 
-        if word in subject_lower:
-
-            return False
-
-
-
-    allowed_sources = [
-
-        "linkedin",
-        "naukri",
-        "hirist"
-
-    ]
+    return subject
 
 
-    for source in allowed_sources:
-
-        if source in sender_lower:
-
-            return True
-
-
-    return False
-
-
-
-
-# -----------------------------
-# Read Gmail
-# -----------------------------
 
 def read_emails():
 
-
     service = gmail_service()
-
 
 
     results = service.users().messages().list(
@@ -143,12 +113,10 @@ def read_emails():
     ).execute()
 
 
-
     messages = results.get(
         "messages",
         []
     )
-
 
 
     print(
@@ -157,13 +125,10 @@ def read_emails():
     )
 
 
-
     job_results = []
 
 
-
     for msg in messages:
-
 
 
         email_data = service.users().messages().get(
@@ -190,46 +155,34 @@ def read_emails():
 
 
 
-        subject = message["subject"] or ""
+        # FIXED UTF-8 SUBJECT
+
+        raw_subject = message["subject"] or ""
+
+        subject = decode_subject(
+            raw_subject
+        )
+
 
         sender = message["from"] or ""
-
-
-
-        # Ignore unwanted mails
-
-        if not is_job_email(subject, sender):
-
-            print(
-                "Skipped:",
-                subject
-            )
-
-            continue
-
-
 
 
         body = ""
 
 
-
-        # Extract body
+        # Read email body
 
         if message.is_multipart():
 
 
             for part in message.walk():
 
-
                 content_type = part.get_content_type()
 
 
                 if content_type in [
-
                     "text/plain",
                     "text/html"
-
                 ]:
 
 
@@ -240,12 +193,10 @@ def read_emails():
 
                     if payload:
 
-
                         body += payload.decode(
                             "utf-8",
                             errors="ignore"
                         )
-
 
 
         else:
@@ -265,28 +216,72 @@ def read_emails():
 
 
 
+        # Remove unwanted emails
 
-        print("\n================ JOB EMAIL ================")
+        skip_keywords = [
 
-        print("SUBJECT:")
-        print(subject)
+            "security alert",
+            "application successful",
+            "follow up application",
+            "delivery status notification",
+            "account notification",
+            "recruiting experience"
+
+        ]
 
 
-        print("\nFROM:")
-        print(sender)
+        if any(
+
+            word in subject.lower()
+
+            for word in skip_keywords
+
+        ):
+
+            print(
+                "Skipped:",
+                subject
+            )
+
+            continue
 
 
-        print("\nBODY SAMPLE:")
 
         print(
-            body[:1000]
+            "\n================ JOB EMAIL ================"
+        )
+
+
+        print(
+            "SUBJECT:"
+        )
+
+        print(
+            subject
+        )
+
+
+        print(
+            "\nFROM:"
+        )
+
+        print(
+            sender
+        )
+
+
+        print(
+            "\nBODY SAMPLE:"
+        )
+
+        print(
+            body[:1500]
         )
 
 
         print(
             "============================================"
         )
-
 
 
 
@@ -301,7 +296,6 @@ def read_emails():
         )
 
 
-
         if job is None:
 
             print(
@@ -312,7 +306,6 @@ def read_emails():
 
 
 
-
         job["date"] = datetime.now().strftime(
 
             "%Y-%m-%d %H:%M:%S"
@@ -320,16 +313,10 @@ def read_emails():
         )
 
 
-
         job_results.append(
             job
         )
 
-
-
-
-
-    # Save jobs.json
 
 
     with open(
@@ -356,11 +343,11 @@ def read_emails():
         )
 
 
-
     print(
-        f"Saved {len(job_results)} jobs to jobs.json"
-    )
 
+        f"Saved {len(job_results)} jobs to jobs.json"
+
+    )
 
 
 
