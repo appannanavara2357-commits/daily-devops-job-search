@@ -1,4 +1,7 @@
 import json
+import os
+from datetime import datetime
+
 from job_sources.remotive_source import search_jobs
 from email_sender import send_email
 from filters import filter_jobs
@@ -8,58 +11,199 @@ FILE_NAME = "previous_jobs.json"
 
 
 def load_previous_jobs():
+    """
+    Load already sent job URLs
+    """
+
+    if not os.path.exists(FILE_NAME):
+        return []
+
     try:
-        with open(FILE_NAME, "r") as file:
+        with open(
+            FILE_NAME,
+            "r",
+            encoding="utf-8"
+        ) as file:
             return json.load(file)
-    except:
+
+    except json.JSONDecodeError:
         return []
 
 
+
 def save_jobs(jobs):
-    with open(FILE_NAME, "w") as file:
-        json.dump(jobs, file, indent=4)
-
-
-previous_jobs = load_previous_jobs()
-
-jobs = search_jobs()
-jobs = filter_jobs(jobs)
-
-new_jobs = []
-
-existing_urls = []
-
-for job in jobs:
-    if job["url"] not in previous_jobs:
-        new_jobs.append(job)
-        previous_jobs.append(job["url"])
-
-
-if new_jobs:
-
-    email_body = """
-    <h2>Daily DevOps Job Alert 🚀</h2>
+    """
+    Save job URLs with UTF-8 support
     """
 
-    for job in new_jobs:
+    with open(
+        FILE_NAME,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        json.dump(
+            jobs,
+            file,
+            indent=4,
+            ensure_ascii=False
+        )
+
+
+
+def create_email_body(jobs):
+
+    today = datetime.now().strftime("%d-%m-%Y")
+
+    email_body = f"""
+    <html>
+    <body>
+
+    <h2>
+    🚀 Daily DevOps Job Alert - {today}
+    </h2>
+
+    """
+
+    for job in jobs:
+
+        skills = ", ".join(
+            job.get(
+                "matched_skills",
+                []
+            )
+        )
+
         email_body += f"""
+
         <hr>
-        <h3>{job['title']}</h3>
+
+        <h3>
+        {job.get('title','N/A')}
+        </h3>
+
+
         <p>
-        <b>Company:</b> {job['company']}<br>
-        <b>Location:</b> {job['location']}<br>
-        <b>Skills:</b> {', '.join(job.get('matched_skills', []))}<br>
+
+        <b>Company:</b>
+        {job.get('company','N/A')}
+        <br>
+
+
+        <b>Location:</b>
+        {job.get('location','N/A')}
+        <br>
+
+
+        <b>Skills:</b>
+        {skills}
+        <br>
+
+
         <b>Apply:</b>
-        <a href="{job['url']}">{job['url']}</a>
+        <a href="{job.get('url')}">
+        Click Here
+        </a>
+
         </p>
+
         """
 
-    send_email(
-        "Daily DevOps Job Alert",
-        email_body
+    email_body += """
+
+    </body>
+    </html>
+
+    """
+
+    return email_body
+
+
+
+def main():
+
+    print("Searching jobs...")
+
+    previous_jobs = load_previous_jobs()
+
+
+    print(
+        f"Previously sent jobs: {len(previous_jobs)}"
     )
 
-    save_jobs(previous_jobs)
 
-else:
-    print("No new jobs found today.")
+    jobs = search_jobs()
+
+
+    print(
+        f"Jobs found: {len(jobs)}"
+    )
+
+
+    jobs = filter_jobs(jobs)
+
+
+    print(
+        f"Jobs after filtering: {len(jobs)}"
+    )
+
+
+    new_jobs = []
+
+
+    sent_urls = set(previous_jobs)
+
+
+    for job in jobs:
+
+        url = job.get("url")
+
+
+        if url and url not in sent_urls:
+
+            new_jobs.append(job)
+
+            sent_urls.add(url)
+
+
+
+    if new_jobs:
+
+
+        print(
+            f"New jobs found: {len(new_jobs)}"
+        )
+
+
+        email_body = create_email_body(
+            new_jobs
+        )
+
+
+        send_email(
+            "Daily DevOps Job Alert",
+            email_body
+        )
+
+
+        save_jobs(
+            list(sent_urls)
+        )
+
+
+        print(
+            "Email sent successfully"
+        )
+
+
+    else:
+
+        print(
+            "No new jobs found today."
+        )
+
+
+
+if __name__ == "__main__":
+
+    main()
