@@ -28,7 +28,7 @@ def clean_subject(subject):
 
 
 # ==========================
-# Remove HTML
+# Clean HTML
 # ==========================
 
 def remove_html(text):
@@ -36,18 +36,91 @@ def remove_html(text):
     text = unescape(text)
 
     text = re.sub(
-        r"<[^>]+>",
+        r"<script.*?</script>",
         " ",
+        text,
+        flags=re.S
+    )
+
+    text = re.sub(
+        r"<style.*?</style>",
+        " ",
+        text,
+        flags=re.S
+    )
+
+    text = re.sub(
+        r"<[^>]+>",
+        "\n",
         text
     )
 
     text = re.sub(
-        r"\s+",
-        " ",
+        r"\n+",
+        "\n",
         text
     )
 
     return text.strip()
+
+
+
+# ==========================
+# Extract Company
+# ==========================
+
+def extract_company(text):
+
+    companies = [
+
+        "Amazon",
+        "Microsoft",
+        "Google",
+        "Accenture",
+        "Infosys",
+        "Wipro",
+        "Deloitte",
+        "PwC",
+        "Quantiphi",
+        "SysMind",
+        "Saviynt",
+        "Omnissa",
+        "Wells Fargo",
+        "GoKwik",
+        "Lemon.io"
+
+    ]
+
+
+    for company in companies:
+
+        if company.lower() in text.lower():
+
+            return company
+
+
+    # LinkedIn format:
+    # Role
+    # Company
+
+    lines = [
+        x.strip()
+        for x in text.split("\n")
+        if x.strip()
+    ]
+
+
+    for i,line in enumerate(lines):
+
+        if "India" in line:
+
+            if i > 0:
+
+                return lines[i-1]
+
+
+    return "Unknown"
+
 
 
 
@@ -62,100 +135,37 @@ def extract_job_details(subject, body, sender=""):
 
     clean_body = remove_html(body)
 
-    text = subject + " " + clean_body
 
-    lower = text.lower()
-
+    text = subject + "\n" + clean_body
 
 
-    # ==========================
-    # LinkedIn Filter
-    # ==========================
-
-    if "linkedin" in sender.lower():
-
-        if "linkedin.com/comm/jobs/view" not in body.lower():
-
-            print("Skipped LinkedIn alert")
-
-            return None
+    lower=text.lower()
 
 
 
-    # ==========================
-    # Ignore Non Job Emails
-    # ==========================
+    # Ignore unwanted mails
 
-    ignore_words = [
-
-        # Delivery
-
-        "delivery status notification",
-        "delivery incomplete",
-        "mail delivery subsystem",
-        "temporary problem while delivering",
-        "recipient server did not accept",
-        "timed out",
-
-
-        # Security
+    ignore=[
 
         "security alert",
-        "new sign-in",
-        "verify your",
-
-
-        # Survey
-
-        "survey",
-        "recruiting experience",
-
-
-        # Application status
-
+        "delivery status",
+        "delivery incomplete",
         "resume has been viewed",
-        "contact viewed",
+        "application successful",
         "application status",
-        "status has been changed",
-        "applied-jobs",
-
-
-        # LinkedIn confirmation
-
-        "job alert has been created",
-        "get job alerts for this search",
-
-
-        # Hirist recommendation
-
-        "10+ jobs matching your profile",
-        "jobs recommended for you",
-        "matching jobs based on your preferences"
+        "verify your",
+        "survey"
 
     ]
 
 
-    for word in ignore_words:
+    for word in ignore:
 
         if word in lower:
 
-            print("Skipped non-job email")
+            print("Skipped:",word)
 
             return None
-
-
-
-    # Ignore replies
-
-    if subject.lower().startswith("re:"):
-
-        print("Skipped reply")
-
-        return None
-
-
-
-    job = {}
 
 
 
@@ -163,86 +173,67 @@ def extract_job_details(subject, body, sender=""):
     # Role
     # ==========================
 
-    role = subject
+
+    role=subject
 
 
-    if "your job alert for" in role.lower():
+    # LinkedIn
 
-        lines = clean_body.split("\n")
+    if "linkedin" in sender.lower():
+
+        lines=[
+
+            x.strip()
+            for x in clean_body.split("\n")
+            if x.strip()
+
+        ]
+
 
         for line in lines:
 
-            line = line.strip()
-
             if (
-                len(line) > 5
-                and
                 "view job" not in line.lower()
+                and
+                "linkedin" not in line.lower()
+                and
+                len(line)>5
             ):
 
-                role = line
+                role=line
 
                 break
 
 
 
-    role = role.replace(
+    role=role.replace(
+        "✉️ Job |",
+        ""
+    )
+
+
+    role=role.replace(
         "âœ‰ï¸ Job |",
         ""
     )
 
 
-    job["role"] = role.strip()
+    job={}
+
+
+    job["role"]=role.strip()
 
 
 
-    # ==========================
-    # Company Detection
-    # ==========================
+    # Company
 
-    companies = [
-
-        "Amazon",
-        "Microsoft",
-        "Google",
-        "Quantiphi",
-        "SysMind",
-        "PwC",
-        "Deloitte",
-        "Infosys",
-        "Wipro",
-        "Accenture",
-        "Philips",
-        "Saviynt"
-
-    ]
-
-
-    company = "Unknown"
+    job["company"]=extract_company(text)
 
 
 
-    # FIXED COMPANY SEARCH
-
-    for c in companies:
-
-        if c.lower() in clean_body.lower():
-
-            company = c
-
-            break
-
-
-
-    job["company"] = company
-
-
-
-    # ==========================
     # Location
-    # ==========================
 
-    locations = [
+    locations=[
 
         "Bengaluru",
         "Bangalore",
@@ -256,7 +247,7 @@ def extract_job_details(subject, body, sender=""):
     ]
 
 
-    found = []
+    found=[]
 
 
     for loc in locations:
@@ -267,25 +258,22 @@ def extract_job_details(subject, body, sender=""):
 
 
 
-    job["location"] = (
-
+    job["location"]=(
         ", ".join(dict.fromkeys(found))
-
         if found
-
         else
-
         "Not Found"
-
     )
 
 
 
-    # ==========================
     # Skills
-    # ==========================
 
-    skill_words = [
+
+    skills=[]
+
+
+    skill_list=[
 
         "AWS",
         "Azure",
@@ -305,10 +293,7 @@ def extract_job_details(subject, body, sender=""):
     ]
 
 
-    skills=[]
-
-
-    for skill in skill_words:
+    for skill in skill_list:
 
         if skill.lower() in lower:
 
@@ -316,116 +301,58 @@ def extract_job_details(subject, body, sender=""):
 
 
 
-    job["skills"] = skills
+    job["skills"]=skills
 
 
 
-    # ==========================
-    # Extract Apply Link
-    # ==========================
 
-    urls = re.findall(
-        r'https?://[^\s"<>]+',
+    # Apply Link
+
+
+    urls=re.findall(
+        r"https?://[^\s\"<>]+",
         body
     )
 
 
-    job_link = "Not Found"
-
-
-
-    bad_links = [
-
-        "w3.org",
-        "xhtml",
-        "xmlns",
-        "googleapis",
-        "fonts.googleapis",
-        "unsubscribe",
-        "tracking",
-        "logs.",
-        "survey",
-        "accounts.google"
-
-    ]
-
+    link="Not Found"
 
 
     for url in urls:
 
 
-        url = url.replace(
+        url=url.replace(
             "&amp;",
             "&"
         )
 
 
-        url = url.strip(")>,\"'")
-
-
-
-        if any(
-            bad in url.lower()
-            for bad in bad_links
+        if (
+            "linkedin.com/comm/jobs/view"
+            in url.lower()
         ):
 
-            continue
-
-
-
-        # LinkedIn
-
-        if "linkedin.com/comm/jobs/view" in url.lower():
-
-            job_link = url.split("&")[0]
+            link=url.split("&")[0]
 
             break
 
 
-
-        # Hirist
-
-        if "hirist.tech%2f" in url.lower():
-
-            decoded = url.split("CL0/")[-1]
-
-
-            decoded = (
-
-                decoded
-                .replace("%2F","/")
-                .replace("%3F","?")
-                .replace("%3D","=")
-                .replace("%26","&")
-
-            )
-
-
-            if decoded.startswith("https:"):
-
-                job_link = decoded.split("/1/")[0]
-
-                break
-
-
-
-        # Normal jobs
 
         if (
-            "/jobs/" in url.lower()
+            "remotive.com"
+            in url.lower()
             or
-            "/j/" in url.lower()
-            or
-            "jobid=" in url.lower()
+            "hirist.tech/j/"
+            in url.lower()
         ):
 
-            job_link=url
+            link=url
 
             break
 
 
 
-    job["apply_link"] = job_link
+    job["apply_link"]=link
 
 
     return job
