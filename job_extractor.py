@@ -4,10 +4,13 @@ from html import unescape
 
 
 # ==========================
-# Clean Subject
+# Decode Subject
 # ==========================
 
 def clean_subject(subject):
+
+    if not subject:
+        return ""
 
     result = ""
 
@@ -33,6 +36,9 @@ def clean_subject(subject):
 
 def remove_html(text):
 
+    if not text:
+        return ""
+
     text = unescape(text)
 
     text = re.sub(
@@ -52,197 +58,206 @@ def remove_html(text):
 
 
 # ==========================
-# Extract Job Details
+# Extract Company
 # ==========================
 
-def extract_job_details(subject, body, sender=""):
-
-
-    subject = clean_subject(subject)
-
-    clean_body = remove_html(body)
-
-    text = subject + " " + clean_body
-
-    lower = text.lower()
-
-
-
-    # ==========================
-    # LinkedIn Filter
-    # ==========================
-
-    if "linkedin" in sender.lower():
-
-        if "linkedin.com/comm/jobs/view" not in body.lower():
-
-            print("Skipped LinkedIn alert")
-
-            return None
-
-
-
-    # ==========================
-    # Ignore Non Job Emails
-    # ==========================
-
-    ignore_words = [
-
-        # Delivery
-
-        "delivery status notification",
-        "delivery incomplete",
-        "mail delivery subsystem",
-        "temporary problem while delivering",
-        "recipient server did not accept",
-        "timed out",
-
-
-        # Security
-
-        "security alert",
-        "new sign-in",
-        "verify your",
-
-
-        # Survey
-
-        "survey",
-        "recruiting experience",
-
-
-        # Application status
-
-        "resume has been viewed",
-        "contact viewed",
-        "application status",
-        "status has been changed",
-        "applied-jobs",
-
-
-        # LinkedIn confirmation
-
-        "job alert has been created",
-        "get job alerts for this search",
-
-
-        # Hirist recommendation
-
-        "10+ jobs matching your profile",
-        "jobs recommended for you",
-        "matching jobs based on your preferences"
-
-    ]
-
-
-    for word in ignore_words:
-
-        if word in lower:
-
-            print("Skipped non-job email")
-
-            return None
-
-
-
-    # Ignore replies
-
-    if subject.lower().startswith("re:"):
-
-        print("Skipped reply")
-
-        return None
-
-
-
-    job = {}
-
-
-
-    # ==========================
-    # Role
-    # ==========================
-
-    role = subject
-
-
-    if "your job alert for" in role.lower():
-
-        lines = clean_body.split("\n")
-
-        for line in lines:
-
-            line = line.strip()
-
-            if (
-                len(line) > 5
-                and
-                "view job" not in line.lower()
-            ):
-
-                role = line
-
-                break
-
-
-
-    role = role.replace(
-        "âœ‰ï¸ Job |",
-        ""
-    )
-
-
-    job["role"] = role.strip()
-
-
-
-    # ==========================
-    # Company Detection
-    # ==========================
+def extract_company(text):
 
     companies = [
 
         "Amazon",
         "Microsoft",
         "Google",
+        "Accenture",
+        "Wipro",
+        "Infosys",
+        "Deloitte",
+        "PwC",
         "Quantiphi",
         "SysMind",
-        "PwC",
-        "Deloitte",
-        "Infosys",
-        "Wipro",
-        "Accenture",
-        "Philips",
-        "Saviynt"
+        "Saviynt",
+        "Omnissa",
+        "Wells Fargo",
+        "GoKwik",
+        "Lemon.io"
 
     ]
 
 
-    company = "Unknown"
+    for company in companies:
+
+        if company.lower() in text.lower():
+
+            return company
+
+
+    return "Unknown"
 
 
 
-    # FIXED COMPANY SEARCH
+# ==========================
+# Extract LinkedIn Job
+# ==========================
 
-    for c in companies:
+def extract_linkedin(text):
 
-        if c.lower() in clean_body.lower():
+    lines = text.splitlines()
 
-            company = c
-
-            break
-
-
-
-    job["company"] = company
+    job={}
 
 
+    for i,line in enumerate(lines):
 
-    # ==========================
+        line=line.strip()
+
+
+        if not line:
+            continue
+
+
+        if "View job:" in line:
+
+            url = line.split("View job:")[-1].strip()
+
+            job["apply_link"]=url
+
+
+            if i>=3:
+
+                job["role"]=lines[i-3].strip()
+
+                job["company"]=lines[i-2].strip()
+
+                job["location"]=lines[i-1].strip()
+
+
+            return job
+
+
+
+    return None
+
+
+
+
+# ==========================
+# Main Extractor
+# ==========================
+
+
+def extract_job_details(subject, body, sender=""):
+
+
+    subject=clean_subject(subject)
+
+    body_text=remove_html(body)
+
+
+    text=subject+" "+body_text
+
+
+    lower=text.lower()
+
+
+
+    # Ignore our own emails
+
+    if "daily devops job alert" in lower:
+
+        print("Skipped own alert")
+
+        return None
+
+
+
+    # Ignore application emails
+
+    ignore=[
+
+        "security alert",
+        "delivery status",
+        "application successful",
+        "follow up application",
+        "set your password",
+        "welcome to",
+        "recruiting experience",
+        "survey",
+        "job alert has been created"
+
+    ]
+
+
+    for word in ignore:
+
+        if word in lower:
+
+            print("Skipped:",word)
+
+            return None
+
+
+
+
+    # LinkedIn
+
+    if "linkedin.com" in lower:
+
+
+        linkedin_job=extract_linkedin(body_text)
+
+
+        if linkedin_job:
+
+
+            linkedin_job["skills"]=extract_skills(text)
+
+            if "location" not in linkedin_job:
+
+                linkedin_job["location"]="Not Found"
+
+
+            return linkedin_job
+
+
+
+
+    job={}
+
+
+
+    # ======================
+    # Role
+    # ======================
+
+
+    role=subject
+
+
+    role=role.replace(
+        "✉️ Job |",
+        ""
+    )
+
+
+    role=role.replace(
+        "âœ‰ï¸ Job |",
+        ""
+    )
+
+
+    job["role"]=role.strip()
+
+
+
+    # Company
+
+    job["company"]=extract_company(text)
+
+
+
     # Location
-    # ==========================
 
-    locations = [
+    locations=[
 
         "Bengaluru",
         "Bangalore",
@@ -256,7 +271,7 @@ def extract_job_details(subject, body, sender=""):
     ]
 
 
-    found = []
+    found=[]
 
 
     for loc in locations:
@@ -267,25 +282,38 @@ def extract_job_details(subject, body, sender=""):
 
 
 
-    job["location"] = (
-
-        ", ".join(dict.fromkeys(found))
-
+    job["location"]=(
+        ", ".join(found)
         if found
-
         else
-
         "Not Found"
-
     )
 
 
 
-    # ==========================
-    # Skills
-    # ==========================
+    job["skills"]=extract_skills(text)
 
-    skill_words = [
+
+
+    job["apply_link"]=extract_link(text)
+
+
+
+    return job
+
+
+
+
+
+# ==========================
+# Skills
+# ==========================
+
+
+def extract_skills(text):
+
+
+    skills=[
 
         "AWS",
         "Azure",
@@ -305,127 +333,52 @@ def extract_job_details(subject, body, sender=""):
     ]
 
 
-    skills=[]
+    found=[]
 
 
-    for skill in skill_words:
+    for skill in skills:
 
-        if skill.lower() in lower:
+        if skill.lower() in text.lower():
 
-            skills.append(skill)
-
-
-
-    job["skills"] = skills
+            found.append(skill)
 
 
+    return found
 
-    # ==========================
-    # Extract Apply Link
-    # ==========================
 
-    urls = re.findall(
+
+
+# ==========================
+# URL Extraction
+# ==========================
+
+
+def extract_link(text):
+
+
+    urls=re.findall(
         r'https?://[^\s"<>]+',
-        body
+        text
     )
-
-
-    job_link = "Not Found"
-
-
-
-    bad_links = [
-
-        "w3.org",
-        "xhtml",
-        "xmlns",
-        "googleapis",
-        "fonts.googleapis",
-        "unsubscribe",
-        "tracking",
-        "logs.",
-        "survey",
-        "accounts.google"
-
-    ]
-
 
 
     for url in urls:
 
 
-        url = url.replace(
-            "&amp;",
-            "&"
-        )
+        if "linkedin.com/comm/jobs/view" in url:
+
+            return url.split("&")[0]
 
 
-        url = url.strip(")>,\"'")
+        if "hirist.tech/j/" in url:
+
+            return url
 
 
+        if "remotive.com" in url:
 
-        if any(
-            bad in url.lower()
-            for bad in bad_links
-        ):
-
-            continue
+            return url
 
 
 
-        # LinkedIn
-
-        if "linkedin.com/comm/jobs/view" in url.lower():
-
-            job_link = url.split("&")[0]
-
-            break
-
-
-
-        # Hirist
-
-        if "hirist.tech%2f" in url.lower():
-
-            decoded = url.split("CL0/")[-1]
-
-
-            decoded = (
-
-                decoded
-                .replace("%2F","/")
-                .replace("%3F","?")
-                .replace("%3D","=")
-                .replace("%26","&")
-
-            )
-
-
-            if decoded.startswith("https:"):
-
-                job_link = decoded.split("/1/")[0]
-
-                break
-
-
-
-        # Normal jobs
-
-        if (
-            "/jobs/" in url.lower()
-            or
-            "/j/" in url.lower()
-            or
-            "jobid=" in url.lower()
-        ):
-
-            job_link=url
-
-            break
-
-
-
-    job["apply_link"] = job_link
-
-
-    return job
+    return "Not Found"
