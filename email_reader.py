@@ -18,10 +18,13 @@ SCOPES = [
 ]
 
 
+# -----------------------------
+# Gmail Authentication
+# -----------------------------
+
 def gmail_service():
 
     creds = None
-
 
     if os.path.exists("token.json"):
 
@@ -37,14 +40,12 @@ def gmail_service():
 
             creds.refresh(Request())
 
-
         else:
 
             flow = InstalledAppFlow.from_client_secrets_file(
                 "credentials.json",
                 SCOPES
             )
-
 
             creds = flow.run_local_server(
                 port=0
@@ -67,11 +68,65 @@ def gmail_service():
         credentials=creds
     )
 
-
     return service
 
 
 
+# -----------------------------
+# Remove unwanted emails
+# -----------------------------
+
+def is_job_email(subject, sender):
+
+    subject_lower = subject.lower()
+    sender_lower = sender.lower()
+
+
+    ignore_words = [
+
+        "security alert",
+        "application successful",
+        "follow up application",
+        "account notification",
+        "google",
+        "password",
+        "verification"
+
+    ]
+
+
+    for word in ignore_words:
+
+        if word in subject_lower:
+
+            return False
+
+
+
+    allowed_sources = [
+
+        "linkedin",
+        "naukri",
+        "hirist"
+
+    ]
+
+
+    for source in allowed_sources:
+
+        if source in sender_lower:
+
+            return True
+
+
+    return False
+
+
+
+
+# -----------------------------
+# Read Gmail
+# -----------------------------
 
 def read_emails():
 
@@ -83,7 +138,7 @@ def read_emails():
     results = service.users().messages().list(
 
         userId="me",
-        maxResults=10
+        maxResults=20
 
     ).execute()
 
@@ -141,11 +196,25 @@ def read_emails():
 
 
 
+        # Ignore unwanted mails
+
+        if not is_job_email(subject, sender):
+
+            print(
+                "Skipped:",
+                subject
+            )
+
+            continue
+
+
+
+
         body = ""
 
 
 
-        # Read email body
+        # Extract body
 
         if message.is_multipart():
 
@@ -156,10 +225,11 @@ def read_emails():
                 content_type = part.get_content_type()
 
 
-
                 if content_type in [
+
                     "text/plain",
                     "text/html"
+
                 ]:
 
 
@@ -172,6 +242,7 @@ def read_emails():
 
 
                         body += payload.decode(
+                            "utf-8",
                             errors="ignore"
                         )
 
@@ -188,51 +259,36 @@ def read_emails():
             if payload:
 
                 body = payload.decode(
+                    "utf-8",
                     errors="ignore"
                 )
 
 
 
 
+        print("\n================ JOB EMAIL ================")
 
-        # DEBUG SECTION
-
-        print("\n================ DEBUG EMAIL ================")
-
-
-        print(
-            "SUBJECT:"
-        )
-
+        print("SUBJECT:")
         print(subject)
 
 
-
-        print(
-            "\nFROM:"
-        )
-
+        print("\nFROM:")
         print(sender)
 
 
+        print("\nBODY SAMPLE:")
 
         print(
-            "\nBODY SAMPLE:"
-        )
-
-        print(
-            body[:1500]
+            body[:1000]
         )
 
 
         print(
-            "============================================\n"
+            "============================================"
         )
 
 
 
-
-        # Extract job details
 
         job = extract_job_details(
 
@@ -248,9 +304,8 @@ def read_emails():
 
         if job is None:
 
-
             print(
-                "Skipped non-job email"
+                "No job details extracted"
             )
 
             continue
@@ -273,7 +328,8 @@ def read_emails():
 
 
 
-    # Save JSON
+
+    # Save jobs.json
 
 
     with open(
@@ -310,6 +366,5 @@ def read_emails():
 
 
 if __name__ == "__main__":
-
 
     read_emails()
