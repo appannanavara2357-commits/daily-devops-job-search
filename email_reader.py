@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 
 from email import message_from_bytes
+from email.header import decode_header
 
 from job_extractor import extract_job_details
 
@@ -22,7 +23,6 @@ def gmail_service():
 
     creds = None
 
-
     if os.path.exists("token.json"):
 
         creds = Credentials.from_authorized_user_file(
@@ -30,13 +30,11 @@ def gmail_service():
             SCOPES
         )
 
-
     if not creds or not creds.valid:
 
         if creds and creds.expired and creds.refresh_token:
 
             creds.refresh(Request())
-
 
         else:
 
@@ -45,21 +43,19 @@ def gmail_service():
                 SCOPES
             )
 
-
             creds = flow.run_local_server(
                 port=0
             )
 
-
         with open(
             "token.json",
-            "w"
+            "w",
+            encoding="utf-8"
         ) as token:
 
             token.write(
                 creds.to_json()
             )
-
 
     service = build(
         "gmail",
@@ -67,26 +63,54 @@ def gmail_service():
         credentials=creds
     )
 
-
     return service
 
+
+
+def decode_subject(raw_subject):
+
+    """
+    Fix Gmail encoded subjects like:
+    =?UTF-8?Q?=E2=9C=89=EF=B8=8F_Job?=
+    
+    Output:
+    ✉️ Job
+    """
+
+    subject = ""
+
+    decoded_parts = decode_header(
+        raw_subject
+    )
+
+    for part, encoding in decoded_parts:
+
+        if isinstance(part, bytes):
+
+            subject += part.decode(
+                encoding or "utf-8",
+                errors="ignore"
+            )
+
+        else:
+
+            subject += part
+
+    return subject
 
 
 
 def read_emails():
 
-
     service = gmail_service()
-
 
 
     results = service.users().messages().list(
 
         userId="me",
-        maxResults=10
+        maxResults=20
 
     ).execute()
-
 
 
     messages = results.get(
@@ -95,20 +119,16 @@ def read_emails():
     )
 
 
-
     print(
         "Total emails found:",
         len(messages)
     )
 
 
-
     job_results = []
 
 
-
     for msg in messages:
-
 
 
         email_data = service.users().messages().get(
@@ -135,14 +155,19 @@ def read_emails():
 
 
 
-        subject = message["subject"] or ""
+        # FIXED UTF-8 SUBJECT
+
+        raw_subject = message["subject"] or ""
+
+        subject = decode_subject(
+            raw_subject
+        )
+
 
         sender = message["from"] or ""
 
 
-
         body = ""
-
 
 
         # Read email body
@@ -152,9 +177,7 @@ def read_emails():
 
             for part in message.walk():
 
-
                 content_type = part.get_content_type()
-
 
 
                 if content_type in [
@@ -170,11 +193,10 @@ def read_emails():
 
                     if payload:
 
-
                         body += payload.decode(
+                            "utf-8",
                             errors="ignore"
                         )
-
 
 
         else:
@@ -188,32 +210,64 @@ def read_emails():
             if payload:
 
                 body = payload.decode(
+                    "utf-8",
                     errors="ignore"
                 )
 
 
 
+        # Remove unwanted emails
+
+        skip_keywords = [
+
+            "security alert",
+            "application successful",
+            "follow up application",
+            "delivery status notification",
+            "account notification",
+            "recruiting experience"
+
+        ]
 
 
-        # DEBUG SECTION
+        if any(
 
-        print("\n================ DEBUG EMAIL ================")
+            word in subject.lower()
+
+            for word in skip_keywords
+
+        ):
+
+            print(
+                "Skipped:",
+                subject
+            )
+
+            continue
+
+
+
+        print(
+            "\n================ JOB EMAIL ================"
+        )
 
 
         print(
             "SUBJECT:"
         )
 
-        print(subject)
-
+        print(
+            subject
+        )
 
 
         print(
             "\nFROM:"
         )
 
-        print(sender)
-
+        print(
+            sender
+        )
 
 
         print(
@@ -226,13 +280,10 @@ def read_emails():
 
 
         print(
-            "============================================\n"
+            "============================================"
         )
 
 
-
-
-        # Extract job details
 
         job = extract_job_details(
 
@@ -245,16 +296,13 @@ def read_emails():
         )
 
 
-
         if job is None:
 
-
             print(
-                "Skipped non-job email"
+                "No job details extracted"
             )
 
             continue
-
 
 
 
@@ -265,15 +313,10 @@ def read_emails():
         )
 
 
-
         job_results.append(
             job
         )
 
-
-
-
-    # Save JSON
 
 
     with open(
@@ -300,16 +343,15 @@ def read_emails():
         )
 
 
-
     print(
+
         f"Saved {len(job_results)} jobs to jobs.json"
+
     )
 
 
 
 
-
 if __name__ == "__main__":
-
 
     read_emails()
